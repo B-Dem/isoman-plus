@@ -21,12 +21,13 @@ import {
 } from '@/components/ui/select';
 import type { ISO, UpdateISORequest } from '../types/iso';
 
-// Schema for updating ISOs - all fields are optional
+// On ajoute 'category' au schéma Zod
 const updateISOSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   version: z.string().min(1, 'Version is required').optional(),
   arch: z.enum(['x86_64', 'aarch64', 'arm64', 'i686']).optional(),
   edition: z.string().optional(),
+  category: z.string().min(1, 'Category is required').optional(),
   download_url: z
     .string()
     .url('Must be a valid URL')
@@ -55,6 +56,7 @@ export function EditIsoModal({
   onOpenChange,
   onSubmit,
 }: EditIsoModalProps) {
+  // L'URL peut être éditée uniquement si le téléchargement a échoué (ou pour les ISO ajoutées localement sans URL)
   const canEditURLs = iso.status === 'failed';
 
   const {
@@ -76,7 +78,8 @@ export function EditIsoModal({
         version: iso.version,
         arch: iso.arch as 'x86_64' | 'aarch64' | 'arm64' | 'i686',
         edition: iso.edition || '',
-        download_url: iso.download_url,
+        category: iso.category || 'Linux', // Init de la catégorie
+        download_url: iso.download_url || '',
         checksum_url: iso.checksum_url || '',
         checksum_type: (iso.checksum_type || 'sha256') as
           | 'sha256'
@@ -88,26 +91,21 @@ export function EditIsoModal({
 
   const archValue = watch('arch');
   const checksumTypeValue = watch('checksum_type');
+  const categoryValue = watch('category');
 
   const onFormSubmit = async (data: UpdateISOFormData) => {
     try {
-      // Only send changed fields
       const updateRequest: UpdateISORequest = {};
       if (data.name && data.name !== iso.name) updateRequest.name = data.name;
-      if (data.version && data.version !== iso.version)
-        updateRequest.version = data.version;
+      if (data.version && data.version !== iso.version) updateRequest.version = data.version;
       if (data.arch && data.arch !== iso.arch) updateRequest.arch = data.arch;
-      if (data.edition !== undefined && data.edition !== iso.edition)
-        updateRequest.edition = data.edition;
+      if (data.edition !== undefined && data.edition !== iso.edition) updateRequest.edition = data.edition;
+      if (data.category && data.category !== iso.category) updateRequest.category = data.category; // MAJ catégorie
 
-      // Only include URL fields for failed ISOs
       if (canEditURLs) {
-        if (data.download_url && data.download_url !== iso.download_url)
+        if (data.download_url !== undefined && data.download_url !== iso.download_url)
           updateRequest.download_url = data.download_url;
-        if (
-          data.checksum_url !== undefined &&
-          data.checksum_url !== iso.checksum_url
-        )
+        if (data.checksum_url !== undefined && data.checksum_url !== iso.checksum_url)
           updateRequest.checksum_url = data.checksum_url || undefined;
         if (data.checksum_type && data.checksum_type !== iso.checksum_type)
           updateRequest.checksum_type = data.checksum_type;
@@ -138,12 +136,31 @@ export function EditIsoModal({
         </DialogHeader>
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4 mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* Category */}
+            <div>
+              <label htmlFor="category" className="block text-sm font-medium mb-1.5">
+                Category *
+              </label>
+              <Select
+                value={categoryValue}
+                onValueChange={(value) => setValue('category', value)}
+              >
+                <SelectTrigger id="category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Linux">Linux</SelectItem>
+                  <SelectItem value="Windows">Windows</SelectItem>
+                  <SelectItem value="Utility">Utility</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Name */}
             <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium mb-1.5"
-              >
+              <label htmlFor="name" className="block text-sm font-medium mb-1.5">
                 Name *
               </label>
               <Input
@@ -152,19 +169,12 @@ export function EditIsoModal({
                 placeholder="Ubuntu Server"
                 className={errors.name ? 'border-destructive' : ''}
               />
-              {errors.name && (
-                <p className="text-sm text-destructive mt-1">
-                  {errors.name.message}
-                </p>
-              )}
+              {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
             </div>
 
             {/* Version */}
             <div>
-              <label
-                htmlFor="version"
-                className="block text-sm font-medium mb-1.5"
-              >
+              <label htmlFor="version" className="block text-sm font-medium mb-1.5">
                 Version *
               </label>
               <Input
@@ -173,29 +183,17 @@ export function EditIsoModal({
                 placeholder="24.04"
                 className={errors.version ? 'border-destructive' : ''}
               />
-              {errors.version && (
-                <p className="text-sm text-destructive mt-1">
-                  {errors.version.message}
-                </p>
-              )}
+              {errors.version && <p className="text-sm text-destructive mt-1">{errors.version.message}</p>}
             </div>
 
             {/* Architecture */}
             <div>
-              <label
-                htmlFor="arch"
-                className="block text-sm font-medium mb-1.5"
-              >
+              <label htmlFor="arch" className="block text-sm font-medium mb-1.5">
                 Architecture *
               </label>
               <Select
                 value={archValue}
-                onValueChange={(value) =>
-                  setValue(
-                    'arch',
-                    value as 'x86_64' | 'aarch64' | 'arm64' | 'i686',
-                  )
-                }
+                onValueChange={(value) => setValue('arch', value as 'x86_64' | 'aarch64' | 'arm64' | 'i686')}
               >
                 <SelectTrigger id="arch">
                   <SelectValue />
@@ -211,107 +209,70 @@ export function EditIsoModal({
 
             {/* Edition */}
             <div>
-              <label
-                htmlFor="edition"
-                className="block text-sm font-medium mb-1.5"
-              >
+              <label htmlFor="edition" className="block text-sm font-medium mb-1.5">
                 Edition
               </label>
-              <Input
-                id="edition"
-                {...register('edition')}
-                placeholder="minimal, desktop, server..."
-              />
+              <Input id="edition" {...register('edition')} placeholder="minimal, desktop, server..." />
             </div>
           </div>
 
           {/* Download URL - only for failed ISOs */}
           <div>
-            <label
-              htmlFor="download_url"
-              className="block text-sm font-medium mb-1.5"
-            >
-              Download URL *
+            <label htmlFor="download_url" className="block text-sm font-medium mb-1.5">
+              Download URL
             </label>
             <Input
               id="download_url"
               {...register('download_url')}
-              placeholder="https://example.com/iso/file.iso"
+              placeholder="https://example.com/iso/file.iso (or leave empty for local)"
               className={errors.download_url ? 'border-destructive' : ''}
               disabled={!canEditURLs}
             />
-            {errors.download_url && (
-              <p className="text-sm text-destructive mt-1">
-                {errors.download_url.message}
-              </p>
-            )}
+            {errors.download_url && <p className="text-sm text-destructive mt-1">{errors.download_url.message}</p>}
             {!canEditURLs && (
-              <p className="text-sm text-muted-foreground mt-1">
-                URL cannot be changed for completed downloads
-              </p>
+              <p className="text-sm text-muted-foreground mt-1">URL cannot be changed for completed downloads</p>
             )}
           </div>
 
-          {/* Checksum URL - only for failed ISOs */}
-          <div>
-            <label
-              htmlFor="checksum_url"
-              className="block text-sm font-medium mb-1.5"
-            >
-              Checksum URL
-            </label>
-            <Input
-              id="checksum_url"
-              {...register('checksum_url')}
-              placeholder="https://example.com/iso/file.iso.sha256"
-              className={errors.checksum_url ? 'border-destructive' : ''}
-              disabled={!canEditURLs}
-            />
-            {errors.checksum_url && (
-              <p className="text-sm text-destructive mt-1">
-                {errors.checksum_url.message}
-              </p>
-            )}
+          {/* Checksums... */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="checksum_url" className="block text-sm font-medium mb-1.5">
+                Checksum URL
+              </label>
+              <Input
+                id="checksum_url"
+                {...register('checksum_url')}
+                placeholder="https://.../file.iso.sha256"
+                className={errors.checksum_url ? 'border-destructive' : ''}
+                disabled={!canEditURLs}
+              />
+            </div>
+            <div>
+              <label htmlFor="checksum_type" className="block text-sm font-medium mb-1.5">
+                Checksum Type
+              </label>
+              <Select
+                value={checksumTypeValue}
+                onValueChange={(value) => setValue('checksum_type', value as 'sha256' | 'sha512' | 'md5')}
+                disabled={!canEditURLs}
+              >
+                <SelectTrigger id="checksum_type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sha256">SHA256</SelectItem>
+                  <SelectItem value="sha512">SHA512</SelectItem>
+                  <SelectItem value="md5">MD5</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Checksum Type - only for failed ISOs */}
-          <div>
-            <label
-              htmlFor="checksum_type"
-              className="block text-sm font-medium mb-1.5"
-            >
-              Checksum Type
-            </label>
-            <Select
-              value={checksumTypeValue}
-              onValueChange={(value) =>
-                setValue('checksum_type', value as 'sha256' | 'sha512' | 'md5')
-              }
-              disabled={!canEditURLs}
-            >
-              <SelectTrigger id="checksum_type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sha256">SHA256</SelectItem>
-                <SelectItem value="sha512">SHA512</SelectItem>
-                <SelectItem value="md5">MD5</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Submit buttons */}
           <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               {canEditURLs ? 'Save & Retry' : 'Save Changes'}
             </Button>
           </div>

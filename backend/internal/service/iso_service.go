@@ -2,6 +2,9 @@ package service
 
 import (
 	"fmt"
+	"io"
+	"mime/multipart"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -39,6 +42,7 @@ type CreateISORequest struct {
 	Version      string
 	Arch         string
 	Edition      string
+	Category     string // AJOUT: Catégorie
 	DownloadURL  string
 	ChecksumURL  string
 	ChecksumType string
@@ -82,6 +86,7 @@ func (s *ISOService) CreateISO(req CreateISORequest) (*models.ISO, error) {
 		Version:      req.Version,
 		Arch:         req.Arch,
 		Edition:      req.Edition,
+		Category:     req.Category, // AJOUT: On sauvegarde la catégorie
 		FileType:     fileType,
 		DownloadURL:  req.DownloadURL,
 		ChecksumURL:  req.ChecksumURL,
@@ -101,6 +106,61 @@ func (s *ISOService) CreateISO(req CreateISORequest) (*models.ISO, error) {
 
 	// Queue download
 	s.manager.QueueDownload(iso)
+
+	return iso, nil
+}
+
+// NOUVELLE FONCTION : Gère l'upload local sans passer par le downloader HTTP
+func (s *ISOService) UploadLocalISO(name, version, arch, edition, category string, fileHeader *multipart.FileHeader) (*models.ISO, error) {
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	fileType := strings.TrimPrefix(ext, ".")
+
+	if fileType == "" {
+		fileType = "iso" // fallback
+	}
+
+	iso := &models.ISO{
+		ID:        uuid.New().String(),
+		Name:      name,
+		Version:   version,
+		Arch:      arch,
+		Edition:   edition,
+		Category:  category,
+		FileType:  fileType,
+		Status:    models.StatusComplete, // L'upload est instantanément complet
+		SizeBytes: fileHeader.Size,
+		CreatedAt: time.Now(),
+	}
+
+	ComputeFields(iso)
+
+	// Créer le dossier de destination
+	destPath := pathutil.ConstructISOPath(s.isoDir, iso.FilePath)
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return nil, err
+	}
+
+	// Sauvegarder le fichier physiquement
+	src, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer src.Close()
+
+	dst, err := os.Create(destPath)
+	if err != nil {
+		return nil, err
+	}
+	defer dst.Close()
+
+	if _, err = io.Copy(dst, src); err != nil {
+		return nil, err
+	}
+
+	// Sauvegarde en base de données
+	if err := s.db.CreateISO(iso); err != nil {
+		return nil, err
+	}
 
 	return iso, nil
 }
@@ -221,7 +281,7 @@ func (s *ISOService) validateISOUpdate(iso *models.ISO, req models.UpdateISORequ
 		if req.DownloadURL != nil || req.ChecksumURL != nil || req.ChecksumType != nil {
 			return &InvalidStateError{
 				CurrentStatus: string(iso.Status),
-				Message:       "Cannot edit URLs for complete ISOs. Only metadata (name, version, arch, edition) can be changed",
+				Message:       "Cannot edit URLs for complete ISOs. Only metadata (name, version, arch, edition, category) can be changed",
 			}
 		}
 	}
@@ -250,10 +310,18 @@ func (s *ISOService) applyISOUpdates(iso *models.ISO, req models.UpdateISOReques
 		iso.Edition = *req.Edition
 		metadataChanged = true
 	}
+	// AJOUT: Mise à jour de la catégorie
+	// Note: Assure-toi que Category est défini dans models.UpdateISORequest (*string)
+	// (voir instruction plus bas si ce n'est pas le cas)
+	/* if req.Category != nil {
+		iso.Category = *req.Category
+		metadataChanged = true
+	}
+	*/
 
 	// For failed ISOs, allow URL changes
 	if iso.Status == models.StatusFailed {
-		if req.DownloadURL != nil {
+		if req.DownloadURL != nil && *req.DownloadURL != "" {
 			if newFileType, err := DetectFileType(*req.DownloadURL); err == nil {
 				iso.DownloadURL = *req.DownloadURL
 				iso.FileType = newFileType
@@ -297,17 +365,24 @@ func (s *ISOService) checkUpdateConflict(iso *models.ISO) error {
 // finalizeISOUpdate performs file operations and database update based on ISO status.
 func (s *ISOService) finalizeISOUpdate(iso *models.ISO, oldFilePath string, metadataChanged bool) error {
 	if iso.Status == models.StatusFailed {
-		// Reset and re-queue download
-		iso.Status = models.StatusPending
-		iso.Progress = 0
-		iso.ErrorMessage = ""
-		iso.CompletedAt = nil
+		// Reset and re-queue download (seulement s'il y a une URL)
+		if iso.DownloadURL != "" {
+			iso.Status = models.StatusPending
+			iso.Progress = 0
+			iso.ErrorMessage = ""
+			iso.CompletedAt = nil
 
-		if err := s.db.UpdateISO(iso); err != nil {
-			return fmt.Errorf("failed to update ISO: %w", err)
+			if err := s.db.UpdateISO(iso); err != nil {
+				return fmt.Errorf("failed to update ISO: %w", err)
+			}
+
+			s.manager.QueueDownload(iso)
+		} else {
+			// S'il n'y a pas d'URL (c'était un fichier local échoué ou vidé), on met juste à jour
+			if err := s.db.UpdateISO(iso); err != nil {
+				return fmt.Errorf("failed to update ISO: %w", err)
+			}
 		}
-
-		s.manager.QueueDownload(iso)
 		return nil
 	}
 	if iso.Status == models.StatusComplete && metadataChanged {

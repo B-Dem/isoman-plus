@@ -46,6 +46,9 @@ export function IsoCard({ iso, onDelete, onRetry, onEdit }: IsoCardProps) {
             <StatusBadge status={iso.status} />
           </div>
           <div className="flex gap-2 text-sm text-muted-foreground font-mono">
+            {/* Ajout de la catégorie ici */}
+            <span className="font-semibold text-primary">{iso.category}</span>
+            <span>•</span>
             <span>{iso.version}</span>
             <span>•</span>
             <span>{iso.arch}</span>
@@ -72,16 +75,18 @@ export function IsoCard({ iso, onDelete, onRetry, onEdit }: IsoCardProps) {
                 Edit
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem asChild>
-              <a
-                href={iso.download_url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                View Source
-              </a>
-            </DropdownMenuItem>
+            {iso.download_url && (
+              <DropdownMenuItem asChild>
+                <a
+                  href={iso.download_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View Source
+                </a>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onClick={() => onDelete(iso.id)}
               className="text-destructive"
@@ -150,7 +155,7 @@ export function IsoCard({ iso, onDelete, onRetry, onEdit }: IsoCardProps) {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <Download />
+                  <Download className="mr-2 h-4 w-4" />
                   Download
                 </a>
               </Button>
@@ -158,7 +163,7 @@ export function IsoCard({ iso, onDelete, onRetry, onEdit }: IsoCardProps) {
             {iso.status === 'failed' && (
               <>
                 <Button onClick={() => onRetry(iso.id)} className="flex-1">
-                  <RefreshCw />
+                  <RefreshCw className="mr-2 h-4 w-4" />
                   Retry
                 </Button>
                 <Button
@@ -166,7 +171,7 @@ export function IsoCard({ iso, onDelete, onRetry, onEdit }: IsoCardProps) {
                   variant="outline"
                   className="flex-1"
                 >
-                  <Edit />
+                  <Edit className="mr-2 h-4 w-4" />
                   Edit & Retry
                 </Button>
               </>
@@ -181,12 +186,12 @@ export function IsoCard({ iso, onDelete, onRetry, onEdit }: IsoCardProps) {
               >
                 {copiedKey === 'download' ? (
                   <>
-                    <Check className="w-4 h-4" />
+                    <Check className="w-4 h-4 mr-2" />
                     Copied
                   </>
                 ) : (
                   <>
-                    <Copy className="w-4 h-4" />
+                    <Copy className="w-4 h-4 mr-2" />
                     Copy URL
                   </>
                 )}
@@ -199,13 +204,13 @@ export function IsoCard({ iso, onDelete, onRetry, onEdit }: IsoCardProps) {
                 >
                   {copiedKey === 'checksum' ? (
                     <>
-                      <Check className="w-4 h-4" />
+                      <Check className="w-4 h-4 mr-2" />
                       Copied
                     </>
                   ) : (
                     <>
-                      <Copy className="w-4 h-4" />
-                      Copy Checksum URL
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copy Checksum
                     </>
                   )}
                 </Button>

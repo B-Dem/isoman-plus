@@ -175,3 +175,47 @@ export async function getDownloadTrends(
   }
   return response.data;
 }
+// Fonction pour uploader un fichier ISO local
+// Fonction pour uploader un fichier ISO local avec suivi de progression
+export function uploadISO(
+  formData: FormData,
+  onProgress?: (percent: number) => void
+): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.open('POST', '/api/isos/upload');
+
+    // Écouteur de progression de l'upload
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        const percentComplete = Math.round((event.loaded / event.total) * 100);
+        onProgress(percentComplete);
+      }
+    };
+
+    // Gestion de la réponse une fois terminé
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data.data || data);
+        } catch (e) {
+          resolve(xhr.responseText);
+        }
+      } else {
+        try {
+          const errorData = JSON.parse(xhr.responseText);
+          reject(new Error(errorData.error?.message || 'Échec de l\'upload'));
+        } catch (e) {
+          reject(new Error(`Erreur réseau (Statut ${xhr.status})`));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Erreur de connexion pendant l\'upload'));
+
+    // Envoi de la requête
+    xhr.send(formData);
+  });
+}

@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { CreateISORequest, ISO, PaginationInfo } from '../types/iso';
+import type { ISO, PaginationInfo } from '../types/iso';
 import { AddIsoForm } from './AddIsoForm';
 import { IsoCard } from './IsoCard';
 import { IsoListView } from './IsoListView';
@@ -39,7 +39,7 @@ interface IsoListProps {
   error: Error | null;
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
-  onCreateISO: (request: CreateISORequest) => Promise<void>;
+  onRefresh: () => void; // Remplacement de onCreateISO
   onDeleteISO: (id: string) => void;
   onRetryISO: (id: string) => void;
   onEditISO: (iso: ISO) => void;
@@ -56,7 +56,7 @@ export function IsoList({
   error,
   viewMode,
   onViewModeChange,
-  onCreateISO,
+  onRefresh, // Utilisation ici
   onDeleteISO,
   onRetryISO,
   onEditISO,
@@ -104,10 +104,10 @@ export function IsoList({
 
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">ISO Downloads</h2>
+          <h2 className="text-2xl font-bold">ISO Library</h2>
           <div className="flex items-center gap-3">
             <p className="text-muted-foreground">
-              Manage your Linux ISO downloads
+              Manage your OS images and utilities
             </p>
             <WebSocketStatus />
           </div>
@@ -135,7 +135,7 @@ export function IsoList({
               <List className="w-4 h-4" />
             </Button>
           </div>
-          <AddIsoForm onSubmit={onCreateISO} />
+          <AddIsoForm onRefresh={onRefresh} />
         </div>
       </div>
 
@@ -145,7 +145,7 @@ export function IsoList({
           <div className="text-center">
             <p className="text-lg font-medium">No ISOs yet</p>
             <p className="text-sm text-muted-foreground">
-              Add your first ISO download to get started
+              Add your first ISO or local file to get started
             </p>
           </div>
         </div>
@@ -162,7 +162,6 @@ export function IsoList({
               />
             ))}
           </div>
-          {/* Pagination for grid view */}
           <GridPagination
             pagination={pagination}
             onPaginationChange={onPaginationChange}
@@ -214,32 +213,22 @@ function GridPagination({
   onPaginationChange,
 }: GridPaginationProps) {
   const { page, page_size, total, total_pages } = pagination;
-
   const from = total === 0 ? 0 : (page - 1) * page_size + 1;
   const to = Math.min(page * page_size, total);
 
   const handlePageSizeChange = (value: string) => {
-    onPaginationChange({
-      pageIndex: 0, // Reset to first page when changing page size
-      pageSize: Number(value),
-    });
+    onPaginationChange({ pageIndex: 0, pageSize: Number(value) });
   };
 
   const handlePreviousPage = () => {
     if (page > 1) {
-      onPaginationChange({
-        pageIndex: page - 2, // Convert to 0-based
-        pageSize: page_size,
-      });
+      onPaginationChange({ pageIndex: page - 2, pageSize: page_size });
     }
   };
 
   const handleNextPage = () => {
     if (page < total_pages) {
-      onPaginationChange({
-        pageIndex: page, // Current page is already 1-based, so this is next page in 0-based
-        pageSize: page_size,
-      });
+      onPaginationChange({ pageIndex: page, pageSize: page_size });
     }
   };
 
@@ -250,14 +239,10 @@ function GridPagination({
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span>Rows per page:</span>
         <Select value={String(page_size)} onValueChange={handlePageSizeChange}>
-          <SelectTrigger className="w-[70px] h-8">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-[70px] h-8"><SelectValue /></SelectTrigger>
           <SelectContent>
             {[10, 25, 50, 100].map((size) => (
-              <SelectItem key={size} value={String(size)}>
-                {size}
-              </SelectItem>
+              <SelectItem key={size} value={String(size)}>{size}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -268,22 +253,10 @@ function GridPagination({
           {from} - {to} of {total}
         </span>
         <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            mode="icon"
-            size="sm"
-            onClick={handlePreviousPage}
-            disabled={page <= 1}
-          >
+          <Button variant="outline" mode="icon" size="sm" onClick={handlePreviousPage} disabled={page <= 1}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <Button
-            variant="outline"
-            mode="icon"
-            size="sm"
-            onClick={handleNextPage}
-            disabled={page >= total_pages}
-          >
+          <Button variant="outline" mode="icon" size="sm" onClick={handleNextPage} disabled={page >= total_pages}>
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>

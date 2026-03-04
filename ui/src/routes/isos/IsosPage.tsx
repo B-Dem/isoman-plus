@@ -10,7 +10,6 @@ import { EditIsoModal } from '@/components/EditIsoModal';
 import { IsoList } from '@/components/IsoList';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
-  createISO,
   deleteISO,
   listISOsPaginated,
   retryISO,
@@ -18,7 +17,6 @@ import {
 } from '@/lib/api';
 import { useAppStore } from '@/stores';
 import type {
-  CreateISORequest,
   ISO,
   PaginationInfo,
   UpdateISORequest,
@@ -30,24 +28,19 @@ export function IsosPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [isoToEdit, setIsoToEdit] = useState<ISO | null>(null);
 
-  // Get UI state from Zustand
   const viewMode = useAppStore((state) => state.viewMode);
   const setViewMode = useAppStore((state) => state.setViewMode);
 
-  // Sorting state (TanStack Table format)
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'created_at', desc: true },
   ]);
 
-  // Pagination state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Convert sorting state to API params
   const sortBy = sorting.length > 0 ? sorting[0].id : 'created_at';
   const sortDir = sorting.length > 0 && sorting[0].desc ? 'desc' : 'asc';
 
-  // Fetch ISOs with React Query
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['isos', { page, pageSize, sortBy, sortDir }],
     queryFn: () => listISOsPaginated({ page, pageSize, sortBy, sortDir }),
@@ -62,16 +55,12 @@ export function IsosPage() {
     total_pages: 0,
   };
 
-  // Handle WebSocket progress updates
   const handleWebSocketMessage = useCallback(
     (message: WSProgressMessage) => {
       if (message.type === 'progress') {
-        // Update the ISO in the current page's data
         queryClient.setQueryData(
           ['isos', { page, pageSize, sortBy, sortDir }],
-          (
-            oldData: { isos: ISO[]; pagination: PaginationInfo } | undefined,
-          ) => {
+          (oldData: { isos: ISO[]; pagination: PaginationInfo } | undefined) => {
             if (!oldData) return oldData;
 
             const updatedIsos = oldData.isos.map((iso) =>
@@ -84,7 +73,6 @@ export function IsosPage() {
                 : iso,
             );
 
-            // If status is complete or failed, refetch to get updated fields
             if (
               message.payload.status === 'complete' ||
               message.payload.status === 'failed'
@@ -100,54 +88,31 @@ export function IsosPage() {
     [queryClient, page, pageSize, sortBy, sortDir],
   );
 
-  // Set up WebSocket connection
   useWebSocket({ onMessage: handleWebSocketMessage });
 
-  // Create mutation
-  const createMutation = useMutation({
-    mutationFn: createISO,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['isos'] });
-    },
-  });
-
-  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: deleteISO,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['isos'] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['isos'] }),
   });
 
-  // Retry mutation
   const retryMutation = useMutation({
     mutationFn: retryISO,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['isos'] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['isos'] }),
   });
 
-  // Update mutation
   const updateMutation = useMutation({
     mutationFn: ({ id, request }: { id: string; request: UpdateISORequest }) =>
       updateISO(id, request),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['isos'] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['isos'] }),
   });
 
-  const handleCreate = async (request: CreateISORequest) => {
-    await createMutation.mutateAsync(request);
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['isos'] });
   };
 
-  const handleDelete = (id: string) => {
-    deleteMutation.mutate(id);
-  };
-
-  const handleRetry = (id: string) => {
-    retryMutation.mutate(id);
-  };
-
+  const handleDelete = (id: string) => deleteMutation.mutate(id);
+  const handleRetry = (id: string) => retryMutation.mutate(id);
+  
   const handleEdit = (iso: ISO) => {
     setIsoToEdit(iso);
     setEditModalOpen(true);
@@ -157,19 +122,17 @@ export function IsosPage() {
     await updateMutation.mutateAsync({ id, request });
   };
 
-  // Handle pagination changes from DataGrid (0-based pageIndex)
   const handlePaginationChange = useCallback(
     (newPagination: PaginationState) => {
-      setPage(newPagination.pageIndex + 1); // Convert to 1-based
+      setPage(newPagination.pageIndex + 1);
       setPageSize(newPagination.pageSize);
     },
     [],
   );
 
-  // Handle sorting changes from DataGrid
   const handleSortingChange = useCallback((newSorting: SortingState) => {
     setSorting(newSorting);
-    setPage(1); // Reset to first page on sort change
+    setPage(1);
   }, []);
 
   return (
@@ -181,7 +144,7 @@ export function IsosPage() {
         error={error as Error | null}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        onCreateISO={handleCreate}
+        onRefresh={handleRefresh}
         onDeleteISO={handleDelete}
         onRetryISO={handleRetry}
         onEditISO={handleEdit}

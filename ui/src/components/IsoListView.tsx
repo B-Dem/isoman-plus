@@ -62,20 +62,16 @@ export function IsoListView({
 }: IsoListViewProps) {
   const { copyToClipboard, copiedKey } = useCopyWithFeedback();
 
-  // Derive TanStack Table pagination state from server pagination (0-based pageIndex)
   const paginationState: PaginationState = {
     pageIndex: pagination.page - 1,
     pageSize: pagination.page_size,
   };
 
-  // Handle pagination changes from DataGrid
   const handlePaginationChange: OnChangeFn<PaginationState> = (updater) => {
-    const newState =
-      typeof updater === 'function' ? updater(paginationState) : updater;
+    const newState = typeof updater === 'function' ? updater(paginationState) : updater;
     onPaginationChange(newState);
   };
 
-  // Handle sorting changes from DataGrid
   const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
     const newState = typeof updater === 'function' ? updater(sorting) : updater;
     onSortingChange(newState);
@@ -85,9 +81,7 @@ export function IsoListView({
     () => [
       {
         accessorKey: 'name',
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title="Name" />
-        ),
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Name" />,
         cell: ({ row }) => {
           const iso = row.original;
           return (
@@ -110,11 +104,20 @@ export function IsoListView({
           ),
         },
       },
+      // NOUVELLE COLONNE CATÉGORIE
+      {
+        accessorKey: 'category',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Category" />,
+        cell: ({ row }) => (
+          <span className="font-medium text-sm text-primary">{row.original.category}</span>
+        ),
+        meta: {
+          skeleton: <Skeleton className="h-4 w-16" />,
+        },
+      },
       {
         accessorKey: 'status',
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title="Status" />
-        ),
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Status" />,
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
         meta: {
           skeleton: <Skeleton className="h-5 w-20 rounded-full" />,
@@ -122,42 +125,26 @@ export function IsoListView({
       },
       {
         accessorKey: 'version',
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title="Version" />
-        ),
-        cell: ({ row }) => (
-          <span className="font-mono text-sm">{row.original.version}</span>
-        ),
-        meta: {
-          skeleton: <Skeleton className="h-4 w-16" />,
-        },
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Version" />,
+        cell: ({ row }) => <span className="font-mono text-sm">{row.original.version}</span>,
+        meta: { skeleton: <Skeleton className="h-4 w-16" /> },
       },
       {
         accessorKey: 'arch',
         header: 'Arch',
         enableSorting: false,
-        cell: ({ row }) => (
-          <span className="font-mono text-sm">{row.original.arch}</span>
-        ),
-        meta: {
-          skeleton: <Skeleton className="h-4 w-14" />,
-        },
+        cell: ({ row }) => <span className="font-mono text-sm">{row.original.arch}</span>,
+        meta: { skeleton: <Skeleton className="h-4 w-14" /> },
       },
       {
         accessorKey: 'size_bytes',
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title="Size" />
-        ),
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Size" />,
         cell: ({ row }) => (
           <span className="font-mono text-sm">
-            {row.original.size_bytes > 0
-              ? formatBytes(row.original.size_bytes)
-              : '-'}
+            {row.original.size_bytes > 0 ? formatBytes(row.original.size_bytes) : '-'}
           </span>
         ),
-        meta: {
-          skeleton: <Skeleton className="h-4 w-16" />,
-        },
+        meta: { skeleton: <Skeleton className="h-4 w-16" /> },
       },
       {
         accessorKey: 'progress',
@@ -174,9 +161,7 @@ export function IsoListView({
                   style={{ width: `${iso.progress}%` }}
                 />
               </div>
-              <span className="text-xs font-mono text-muted-foreground">
-                {iso.progress}%
-              </span>
+              <span className="text-xs font-mono text-muted-foreground">{iso.progress}%</span>
             </div>
           );
         },
@@ -191,17 +176,13 @@ export function IsoListView({
       },
       {
         accessorKey: 'created_at',
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title="Created" />
-        ),
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Created" />,
         cell: ({ row }) => (
           <span className="font-mono text-xs text-muted-foreground">
             {formatDateShort(row.original.created_at)}
           </span>
         ),
-        meta: {
-          skeleton: <Skeleton className="h-3 w-24" />,
-        },
+        meta: { skeleton: <Skeleton className="h-3 w-24" /> },
       },
       {
         id: 'actions',
@@ -209,10 +190,7 @@ export function IsoListView({
         enableSorting: false,
         cell: ({ row }) => {
           const iso = row.original;
-          const checksumUrl = getFullChecksumUrl(
-            iso.download_link,
-            iso.checksum_type,
-          );
+          const checksumUrl = getFullChecksumUrl(iso.download_link, iso.checksum_type);
           const downloadUrl = getFullDownloadUrl(iso.download_link);
           const copyKey = `${iso.id}`;
 
@@ -220,24 +198,13 @@ export function IsoListView({
             <div className="flex items-center justify-end gap-1">
               {iso.status === 'complete' && (
                 <Button asChild variant="ghost" mode="icon" size="sm">
-                  <a
-                    href={iso.download_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Download"
-                  >
+                  <a href={iso.download_link} target="_blank" rel="noopener noreferrer" title="Download">
                     <Download className="w-4 h-4" />
                   </a>
                 </Button>
               )}
               {iso.status === 'failed' && (
-                <Button
-                  onClick={() => onRetry(iso.id)}
-                  variant="ghost"
-                  mode="icon"
-                  size="sm"
-                  title="Retry"
-                >
+                <Button onClick={() => onRetry(iso.id)} variant="ghost" mode="icon" size="sm" title="Retry">
                   <RefreshCw className="w-4 h-4" />
                 </Button>
               )}
@@ -248,11 +215,7 @@ export function IsoListView({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() =>
-                      copyToClipboard(downloadUrl, `${copyKey}-download`)
-                    }
-                  >
+                  <DropdownMenuItem onClick={() => copyToClipboard(downloadUrl, `${copyKey}-download`)}>
                     {copiedKey === `${copyKey}-download` ? (
                       <Check className="w-4 h-4 mr-2 text-green-500" />
                     ) : (
@@ -261,11 +224,7 @@ export function IsoListView({
                     Copy URL
                   </DropdownMenuItem>
                   {checksumUrl && (
-                    <DropdownMenuItem
-                      onClick={() =>
-                        copyToClipboard(checksumUrl, `${copyKey}-checksum`)
-                      }
-                    >
+                    <DropdownMenuItem onClick={() => copyToClipboard(checksumUrl, `${copyKey}-checksum`)}>
                       {copiedKey === `${copyKey}-checksum` ? (
                         <Check className="w-4 h-4 mr-2 text-green-500" />
                       ) : (
@@ -279,20 +238,15 @@ export function IsoListView({
                     <Edit className="w-4 h-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <a
-                      href={iso.download_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      View Source
-                    </a>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onDelete(iso.id)}
-                    className="text-destructive"
-                  >
+                  {iso.download_url && (
+                    <DropdownMenuItem asChild>
+                      <a href={iso.download_url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        View Source
+                      </a>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => onDelete(iso.id)} className="text-destructive">
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete ISO
                   </DropdownMenuItem>
@@ -323,10 +277,7 @@ export function IsoListView({
     manualPagination: true,
     manualSorting: true,
     pageCount: pagination.total_pages,
-    state: {
-      sorting,
-      pagination: paginationState,
-    },
+    state: { sorting, pagination: paginationState },
     onSortingChange: handleSortingChange,
     onPaginationChange: handlePaginationChange,
   });

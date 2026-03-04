@@ -1,0 +1,1 @@
+ALTER TABLE isos ADD COLUMN category TEXT DEFAULT 'Linux';

@@ -113,6 +113,7 @@ func (h *Handlers) CreateISO(c *gin.Context) {
 		Version:      req.Version,
 		Arch:         req.Arch,
 		Edition:      req.Edition,
+		Category:     req.Category, // AJOUT : On passe bien la catégorie ici !
 		DownloadURL:  req.DownloadURL,
 		ChecksumURL:  req.ChecksumURL,
 		ChecksumType: req.ChecksumType,
@@ -261,4 +262,31 @@ func (h *Handlers) HealthCheck(c *gin.Context) {
 		"status": "ok",
 		"time":   time.Now().Format(time.RFC3339),
 	})
+}
+
+// UploadISO handles local file uploads
+func (h *Handlers) UploadISO(c *gin.Context) {
+	// 1. Lecture des champs du formulaire
+	name := c.PostForm("name")
+	version := c.PostForm("version")
+	arch := c.PostForm("arch")
+	edition := c.PostForm("edition")
+	category := c.PostForm("category") // Pour l'option Catégories
+
+	// 2. Récupération du fichier
+	file, err := c.FormFile("file")
+	if err != nil {
+		ErrorResponse(c, http.StatusBadRequest, ErrCodeBadRequest, "Fichier manquant")
+		return
+	}
+
+	// 3. Appel au service pour le stockage final (passage direct des arguments)
+	iso, err := h.isoService.UploadLocalISO(name, version, arch, edition, category, file)
+	
+	if err != nil {
+		ErrorResponse(c, http.StatusInternalServerError, ErrCodeInternalError, err.Error())
+		return
+	}
+
+	SuccessResponseWithMessage(c, http.StatusCreated, iso, "ISO uploadé avec succès")
 }

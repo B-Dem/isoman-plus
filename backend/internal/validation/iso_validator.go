@@ -14,6 +14,7 @@ type ISOCreateRequest struct {
 	Version      string `json:"version"`
 	Arch         string `json:"arch"`
 	Edition      string `json:"edition"`
+	Category     string `json:"category"` // Ajout du champ Category
 	DownloadURL  string `json:"download_url"`
 	ChecksumURL  string `json:"checksum_url"`
 	ChecksumType string `json:"checksum_type"`
@@ -85,6 +86,13 @@ func ValidateISOCreateRequest(req *ISOCreateRequest) error {
 		errs.Add("arch", "arch must be 20 characters or less")
 	}
 
+	// Validate category (Nouveau)
+	if strings.TrimSpace(req.Category) == "" {
+		errs.Add("category", "category is required")
+	} else if len(req.Category) > 50 {
+		errs.Add("category", "category must be 50 characters or less")
+	}
+
 	// Validate edition (optional)
 	if len(req.Edition) > 50 {
 		errs.Add("edition", "edition must be 50 characters or less")
@@ -120,7 +128,6 @@ func ValidateISOCreateRequest(req *ISOCreateRequest) error {
 	return nil
 }
 
-// isValidHTTPURL checks if a string is a valid HTTP or HTTPS URL.
 func isValidHTTPURL(urlStr string) bool {
 	u, err := url.Parse(urlStr)
 	if err != nil {

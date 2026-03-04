@@ -33,6 +33,7 @@ func SetupRoutes(isoService *service.ISOService, statsService *service.StatsServ
 	{
 		// ISO management
 		api.GET("/isos", handlers.ListISOs)
+		api.POST("/isos/upload", handlers.UploadISO)
 		api.GET("/isos/:id", handlers.GetISO)
 		api.POST("/isos", handlers.CreateISO)
 		api.PUT("/isos/:id", handlers.UpdateISO)
