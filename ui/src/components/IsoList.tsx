@@ -6,6 +6,7 @@ import {
   List,
   Loader2,
   Server,
+  Search,
 } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -19,6 +20,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -26,11 +28,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { ISO, PaginationInfo } from '../types/iso';
+import type { ISO, PaginationInfo } from '@/types/iso';
 import { AddIsoForm } from './AddIsoForm';
 import { IsoCard } from './IsoCard';
 import { IsoListView } from './IsoListView';
 import { WebSocketStatus } from './WebSocketStatus';
+import { SystemStats } from './SystemStats'; // Import des stats système
 
 interface IsoListProps {
   isos: ISO[];
@@ -39,7 +42,7 @@ interface IsoListProps {
   error: Error | null;
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
-  onRefresh: () => void; // Remplacement de onCreateISO
+  onRefresh: () => void;
   onDeleteISO: (id: string) => void;
   onRetryISO: (id: string) => void;
   onEditISO: (iso: ISO) => void;
@@ -56,7 +59,7 @@ export function IsoList({
   error,
   viewMode,
   onViewModeChange,
-  onRefresh, // Utilisation ici
+  onRefresh,
   onDeleteISO,
   onRetryISO,
   onEditISO,
@@ -67,6 +70,8 @@ export function IsoList({
 }: IsoListProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isoToDelete, setIsoToDelete] = useState<ISO | null>(null);
+  
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleDelete = (id: string) => {
     const iso = isos.find((i) => i.id === id);
@@ -82,6 +87,11 @@ export function IsoList({
     setDeleteDialogOpen(false);
     setIsoToDelete(null);
   };
+
+  const filteredIsos = isos.filter((iso) => 
+    iso.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (iso.category && iso.category.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   if (isLoading) {
     return (
@@ -112,7 +122,22 @@ export function IsoList({
             <WebSocketStatus />
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          
+          {/* Jauge d'espace disque système */}
+          <SystemStats />
+
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search ISOs..."
+              className="pl-9 bg-background"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
           <div className="flex items-center border border-border rounded-md">
             <Button
               onClick={() => onViewModeChange('grid')}
@@ -139,20 +164,20 @@ export function IsoList({
         </div>
       </div>
 
-      {pagination.total === 0 ? (
+      {filteredIsos.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[300px] gap-4 border-2 border-dashed border-border rounded-lg">
           <Server className="w-16 h-16 text-muted-foreground/50" />
           <div className="text-center">
-            <p className="text-lg font-medium">No ISOs yet</p>
+            <p className="text-lg font-medium">No ISOs found</p>
             <p className="text-sm text-muted-foreground">
-              Add your first ISO or local file to get started
+              {searchTerm ? 'Try a different search term' : 'Add your first ISO or local file to get started'}
             </p>
           </div>
         </div>
       ) : viewMode === 'grid' ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {isos.map((iso) => (
+            {filteredIsos.map((iso) => (
               <IsoCard
                 key={iso.id}
                 iso={iso}
@@ -169,7 +194,7 @@ export function IsoList({
         </div>
       ) : (
         <IsoListView
-          isos={isos}
+          isos={filteredIsos}
           isFetching={isFetching}
           onDelete={handleDelete}
           onRetry={onRetryISO}

@@ -401,20 +401,35 @@ func (s *ISOService) finalizeISOUpdate(iso *models.ISO, oldFilePath string, meta
 }
 
 // moveISOFiles moves an ISO file and its checksum files from old path to new path.
+// moveISOFiles moves an ISO file and its checksum files from old path to new path.
 func (s *ISOService) moveISOFiles(oldRelPath, newRelPath string) error {
-	// Convert relative paths to absolute paths
-	oldAbsPath := pathutil.ConstructISOPath(s.isoDir, oldRelPath)
-	newAbsPath := pathutil.ConstructISOPath(s.isoDir, newRelPath)
+    // Convert relative paths to absolute paths
+    oldAbsPath := pathutil.ConstructISOPath(s.isoDir, oldRelPath)
+    newAbsPath := pathutil.ConstructISOPath(s.isoDir, newRelPath)
 
-	// Move the main ISO file and checksum files
-	if err := fileutil.MoveFileWithExtensions(oldAbsPath, newAbsPath, constants.ChecksumExtensions...); err != nil {
-		return err
-	}
+    // NOUVEAU : On force la création du nouveau dossier cible (ex: si le nom change beaucoup)
+    if err := os.MkdirAll(filepath.Dir(newAbsPath), 0755); err != nil {
+        return fmt.Errorf("impossible de créer le dossier cible: %w", err)
+    }
 
-	// Clean up empty parent directories from the old location
-	fileutil.CleanupEmptyParentDirs(oldAbsPath, s.isoDir)
+    // NOUVEAU : On renomme physiquement le fichier .iso sur le disque dur
+    if err := os.Rename(oldAbsPath, newAbsPath); err != nil {
+        return fmt.Errorf("impossible de renommer le fichier sur le disque: %w", err)
+    }
 
-	return nil
+    // On déplace aussi les fichiers de Checksum s'ils existent (sans bloquer si on ne les trouve pas)
+    for _, ext := range constants.ChecksumExtensions {
+        oldCheck := oldAbsPath + ext
+        newCheck := newAbsPath + ext
+        if _, err := os.Stat(oldCheck); err == nil {
+            os.Rename(oldCheck, newCheck)
+        }
+    }
+
+    // On nettoie les anciens dossiers vides pour garder le serveur propre
+    fileutil.CleanupEmptyParentDirs(oldAbsPath, s.isoDir)
+
+    return nil
 }
 
 // Business logic functions (moved from models package)

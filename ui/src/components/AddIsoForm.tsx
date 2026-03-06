@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Upload, Globe } from 'lucide-react';
-import { useState } from 'react';
+import { Loader2, Plus, Upload, Globe, FileUp, X } from 'lucide-react';
+import { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress'; // NOUVEAU : La barre de progression
+import { Progress } from '@/components/ui/progress';
 import { createISO, uploadISO } from '../lib/api';
 
 const createISOSchema = z.object({
@@ -43,7 +43,11 @@ export function AddIsoForm({ onRefresh }: AddIsoFormProps) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'download' | 'upload'>('download');
   const [file, setFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0); // NOUVEAU : pourcentage
+  const [uploadProgress, setUploadProgress] = useState(0);
+  
+  // NOUVEAU : États pour le Glisser-Déposer et l'annulation
+  const [isDragging, setIsDragging] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const {
     register,
@@ -67,14 +71,40 @@ export function AddIsoForm({ onRefresh }: AddIsoFormProps) {
   });
 
   const archValue = watch('arch');
-  const checksumTypeValue = watch('checksum_type');
   const categoryValue = watch('category');
+
+  // --- Fonctions pour le Drag & Drop ---
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!isSubmitting) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (isSubmitting) return;
+    
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) setFile(droppedFile);
+  };
+
+  // --- Fonction pour annuler l'upload ---
+  const cancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort(); // Envoie le signal d'annulation
+    }
+  };
 
   const onFormSubmit = async (data: CreateISOFormData) => {
     try {
       if (mode === 'upload') {
         if (!file) {
-          alert("Veuillez sélectionner un fichier ISO !");
+          alert("Please select an ISO file !");
           return;
         }
         const formData = new FormData();
@@ -86,21 +116,32 @@ export function AddIsoForm({ onRefresh }: AddIsoFormProps) {
         if (data.edition) formData.append('edition', data.edition);
 
         setUploadProgress(0);
-        // NOUVEAU : On passe une fonction qui met à jour le pourcentage
-        await uploadISO(formData, (percent) => {
-          setUploadProgress(percent);
-        });
+        abortControllerRef.current = new AbortController(); // On prépare un nouveau "bouton stop"
+
+        await uploadISO(
+          formData, 
+          (percent) => setUploadProgress(percent),
+          abortControllerRef.current.signal // On l'attache à la requête
+        );
       } else {
         await createISO(data as any);
       }
+      
+      // Si on arrive ici, c'est que l'upload s'est bien passé
       reset();
       setFile(null);
       setUploadProgress(0);
       setOpen(false);
       onRefresh();
-    } catch (error) {
-      console.error('Failed to create/upload ISO:', error);
-      alert('Erreur lors de l\'ajout : ' + error);
+      
+    } catch (error: any) {
+      // Si l'erreur est notre annulation volontaire, on se tait et on remet à zéro
+      if (error.message === "Upload cancelled by User") {
+        setUploadProgress(0);
+      } else {
+        console.error('Failed to create/upload ISO:', error);
+        alert('An Error occured while uploading : ' + error);
+      }
     }
   };
 
@@ -182,23 +223,74 @@ export function AddIsoForm({ onRefresh }: AddIsoFormProps) {
           ) : (
             <div>
               <label className="block text-sm font-medium mb-1.5">Select ISO File *</label>
-              <Input type="file" accept=".iso,.img,.zip" onChange={(e) => setFile(e.target.files?.[0] || null)} disabled={isSubmitting} />
+              
+              {/* LA MAGNIFIQUE ZONE DRAG & DROP */}
+              <div 
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  isSubmitting 
+                    ? 'opacity-50 cursor-not-allowed bg-muted border-border' 
+                    : isDragging 
+                      ? 'border-primary bg-primary/10' 
+                      : 'border-border hover:border-primary/50 cursor-pointer'
+                }`}
+                onClick={() => !isSubmitting && document.getElementById('file-upload')?.click()}
+              >
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <FileUp className={`w-10 h-10 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
+                  {file ? (
+                    <div className="text-sm font-medium text-primary break-all px-4">
+                      Selected : {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium">Drag and Drop your ISO here </p>
+                      <p className="text-xs text-muted-foreground">or click to browse a file</p>
+                    </>
+                  )}
+                  
+                  <Input 
+                    type="file" 
+                    accept=".iso,.img,.zip" 
+                    className="hidden" 
+                    id="file-upload"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)} 
+                    disabled={isSubmitting} 
+                  />
+                </div>
+              </div>
             </div>
           )}
 
-          {/* NOUVEAU : La barre de progression s'affiche ici */}
-          {mode === 'upload' && isSubmitting && (
-            <div className="w-full mt-4 space-y-2">
-              <div className="flex justify-between text-sm text-muted-foreground font-medium">
-                <span>Envoi du fichier en cours...</span>
-                <span>{uploadProgress}%</span>
+          {/* BARRE DE PROGRESSION AVEC BOUTON ANNULER */}
+          {mode === 'upload' && isSubmitting && uploadProgress > 0 && (
+            <div className="w-full mt-4 space-y-2 bg-muted p-3 rounded-lg border border-border">
+              <div className="flex justify-between text-sm text-foreground font-medium items-center">
+                <span className="animate-pulse">Uploading ...</span>
+                
+                <div className="flex items-center gap-4">
+                  <span>{uploadProgress}%</span>
+                  <Button 
+                    type="button" 
+                    variant="destructive" 
+                    size="sm" 
+                    className="h-7 w-7 p-0 rounded-full" 
+                    onClick={cancelUpload}
+                    title="Cancel Upload"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
               </div>
               <Progress value={uploadProgress} className="h-2" />
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="submit" disabled={isSubmitting}>
+          <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
+            <Button type="submit" disabled={isSubmitting || (mode === 'upload' && !file)}>
               {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {mode === 'upload' ? 'Uploading...' : 'Creating...'}</> : <><Plus className="w-4 h-4 mr-2" /> Confirm Add</>}
             </Button>
           </div>

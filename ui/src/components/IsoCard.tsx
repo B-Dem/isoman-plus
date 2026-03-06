@@ -1,6 +1,7 @@
 import {
   Check,
   Copy,
+  Disc,
   Download,
   Edit,
   ExternalLink,
@@ -22,6 +23,7 @@ import { getFullChecksumUrl, getFullDownloadUrl } from '@/lib/iso-utils';
 import type { ISO } from '../types/iso';
 import { ProgressBar } from './ProgressBar';
 import { StatusBadge } from './StatusBadge';
+import { getOsLogo } from '../lib/iso-utils';
 
 interface IsoCardProps {
   iso: ISO;
@@ -40,7 +42,15 @@ export function IsoCard({ iso, onDelete, onRetry, onEdit }: IsoCardProps) {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 py-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
-            <h3 className="text-lg font-semibold text-foreground">
+            {/* L'affichage du logo commence ici */}
+            {getOsLogo(iso.name) ? (
+              <img src={getOsLogo(iso.name)!} alt="OS Logo" className="w-6 h-6 object-contain shrink-0" />
+            ) : (
+              <Disc className="w-6 h-6 text-muted-foreground shrink-0" />
+            )}
+            {/* Fin du logo */}
+            
+            <h3 className="text-lg font-semibold text-foreground truncate capitalize" title={iso.name}>
               {iso.name}
             </h3>
             <StatusBadge status={iso.status} />

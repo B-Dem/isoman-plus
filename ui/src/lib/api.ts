@@ -175,14 +175,22 @@ export async function getDownloadTrends(
   }
   return response.data;
 }
-// Fonction pour uploader un fichier ISO local
-// Fonction pour uploader un fichier ISO local avec suivi de progression
+// Fonction pour uploader un fichier ISO local avec suivi de progression et annulation
 export function uploadISO(
   formData: FormData,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal // <-- NOUVEAU : On écoute le signal d'annulation
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+
+    // NOUVEAU : Si on clique sur "Annuler", ça coupe la connexion immédiatement
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        xhr.abort();
+        reject(new Error("Upload annulé par l'utilisateur"));
+      });
+    }
 
     xhr.open('POST', '/api/isos/upload');
 

@@ -7,6 +7,7 @@ export interface ISO {
   version: string;
   arch: string;
   edition: string;
+  category: string;
   file_type: string;
   filename: string;
   file_path: string;
